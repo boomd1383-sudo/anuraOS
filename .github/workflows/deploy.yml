@@ -23,7 +23,9 @@ jobs:
           java-version: '17'
 
       - name: Install PNPM
-        run: npm install -g pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -47,13 +49,16 @@ jobs:
           sudo apt-get install -y binaryen
           export CARGO_BUILD_JOBS=$(nproc)
           
+          # Add cargo bin to the current step's execution path immediately
+          export PATH="$HOME/.cargo/bin:$PATH"
+          
           # Use local cache for wasm-bindgen if available
           if ! command -v wasm-bindgen &> /dev/null || [ "$(wasm-bindgen --version 2>&1 | awk '{print $2}')" != "0.2.105" ]; then
             echo "Installing matching wasm-bindgen-cli v0.2.105..."
             cargo install wasm-bindgen-cli --version 0.2.105 --root ~/.cargo --force
           fi
           
-          # Manually clone and compile the custom wasm-snip tool to bypass cargo network bugs
+          # Manually clone and compile the custom wasm-snip tool
           if ! command -v wasm-snip &> /dev/null; then
             echo "Manually cloning specialized MercuryWorkshop wasm-snip fork..."
             git clone https://github.com /tmp/wasm-snip
@@ -62,6 +67,7 @@ jobs:
             cd $GITHUB_WORKSPACE
           fi
           
+          # Export to system path for subsequent steps
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Build Assets
