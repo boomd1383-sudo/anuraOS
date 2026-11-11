@@ -14,7 +14,13 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
+
+      - name: Install Java (Required by AnuraOS)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
 
       - name: Install PNPM
         run: npm install -g pnpm
@@ -24,12 +30,38 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
 
+      - name: Cache Cargo Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-v105
+
       - name: Install Missing WebAssembly Build Tools
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
         run: |
           sudo apt-get update
           sudo apt-get install -y binaryen
-          cargo install wasm-bindgen-cli --version 0.2.95
-          cargo install wasm-snip
+          export CARGO_BUILD_JOBS=$(nproc)
+          
+          # Install toolchains safely only if they aren't already cached
+          if ! command -v wasm-bindgen &> /dev/null || [ "$(wasm-bindgen --version 2>&1 | awk '{print $2}')" != "0.2.105" ]; then
+            echo "Installing matching wasm-bindgen-cli v0.2.105..."
+            cargo install wasm-bindgen-cli --version 0.2.105 --root ~/.cargo --force
+          fi
+          
+          if ! command -v wasm-snip &> /dev/null; then
+            echo "Installing specialized MercuryWorkshop wasm-snip fork..."
+            cargo install --git https://github.com --root ~/.cargo
+          fi
+          
+          # Add tools back to the active systems path environment
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Build Assets
         run: |
