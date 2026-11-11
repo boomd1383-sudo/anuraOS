@@ -24,6 +24,13 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
 
+      - name: Install Missing WebAssembly Build Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y binaryen
+          cargo install wasm-bindgen-cli --version 0.2.95
+          cargo install wasm-snip
+
       - name: Build Assets
         run: |
           pnpm install
