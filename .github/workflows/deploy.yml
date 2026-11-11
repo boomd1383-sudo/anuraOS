@@ -39,17 +39,14 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-v105
+          key: ${{ runner.os }}-cargo-v105
 
       - name: Install Missing WebAssembly Build Tools
-        env:
-          CARGO_NET_GIT_FETCH_WITH_CLI: true
         run: |
           sudo apt-get update
           sudo apt-get install -y binaryen
           export CARGO_BUILD_JOBS=$(nproc)
           
-          # Install toolchains safely only if they aren't already cached
           if ! command -v wasm-bindgen &> /dev/null || [ "$(wasm-bindgen --version 2>&1 | awk '{print $2}')" != "0.2.105" ]; then
             echo "Installing matching wasm-bindgen-cli v0.2.105..."
             cargo install wasm-bindgen-cli --version 0.2.105 --root ~/.cargo --force
@@ -60,7 +57,6 @@ jobs:
             cargo install --git https://github.com --root ~/.cargo
           fi
           
-          # Add tools back to the active systems path environment
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Build Assets
@@ -69,7 +65,7 @@ jobs:
           make all
 
       - name: Pull Vercel Environment Information
-        run: npx vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        run: npx vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }} --project=anura-os-server
 
       - name: Deploy to Vercel
         run: npx vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }}
