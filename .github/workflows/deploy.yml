@@ -1,38 +1,55 @@
+
 name: Deploy AnuraOS to Vercel
+
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            make \
+            jq \
+            uuid-runtime \
+            wget \
+            clang \
+            gcc-multilib \
+            binaryen
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 24
 
-      - name: Install Java (Required by AnuraOS)
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: temurin
+          java-version: 17
 
       - name: Install PNPM
-        uses: pnpm/action-setup@v3
-        with:
-          version: 9
+        run: npm install -g pnpm
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
 
-      - name: Cache Cargo Dependencies
+      - name: Cache Cargo
         uses: actions/cache@v4
         with:
           path: |
@@ -41,38 +58,50 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-v105
+          key: ${{ runner.os }}-cargo-anura-v105
 
-      - name: Install Missing WebAssembly Build Tools
+      - name: Install WebAssembly Tools
         run: |
-          sudo apt-get update
-          sudo apt-get install -y binaryen
           export CARGO_BUILD_JOBS=$(nproc)
-          
-          export PATH="$HOME/.cargo/bin:$PATH"
-          
-          if ! command -v wasm-bindgen &> /dev/null || [ "$(wasm-bindgen --version 2>&1 | awk '{print $2}')" != "0.2.105" ]; then
-            echo "Installing matching wasm-bindgen-cli v0.2.105..."
-            cargo install wasm-bindgen-cli --version 0.2.105 --root ~/.cargo --force
-          fi
-          
-          if ! command -v wasm-snip &> /dev/null; then
-            echo "Manually cloning specialized MercuryWorkshop wasm-snip fork..."
-            git clone https://github.com /tmp/wasm-snip
-            cd /tmp/wasm-snip
-            cargo install --path . --root ~/.cargo
-            cd $GITHUB_WORKSPACE
-          fi
-          
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-      - name: Build Assets
+          cargo install wasm-bindgen-cli \
+            --version 0.2.105 \
+            --root ~/.cargo \
+            --force
+
+          cargo install --git \
+            https://github.com/r58Playz/wasm-snip \
+            --root ~/.cargo \
+            --force
+
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Build AnuraOS
         run: |
           pnpm install
           make all
 
-      - name: Pull Vercel Environment Information
-        run: npx vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }} --project=anura-os-server
+      - name: Configure Vercel
+        run: |
+          mkdir -p .vercel
+          echo '{
+            "orgId": "${{ secrets.VERCEL_ORG_ID }}",
+            "projectId": "${{ secrets.VERCEL_PROJECT_ID }}"
+          }' > .vercel/project.json
+
+      - name: Pull Vercel Settings
+        run: |
+          npx vercel pull \
+            --yes \
+            --environment=production \
+            --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build for Vercel
+        run: |
+          npx vercel build --prod \
+            --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Deploy to Vercel
-        run: npx vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }}
+        run: |
+          npx vercel deploy --prebuilt --prod \
+            --token=${{ secrets.VERCEL_TOKEN }}
