@@ -47,14 +47,19 @@ jobs:
           sudo apt-get install -y binaryen
           export CARGO_BUILD_JOBS=$(nproc)
           
+          # Use local cache for wasm-bindgen if available
           if ! command -v wasm-bindgen &> /dev/null || [ "$(wasm-bindgen --version 2>&1 | awk '{print $2}')" != "0.2.105" ]; then
             echo "Installing matching wasm-bindgen-cli v0.2.105..."
             cargo install wasm-bindgen-cli --version 0.2.105 --root ~/.cargo --force
           fi
           
+          # Manually clone and compile the custom wasm-snip tool to bypass cargo network bugs
           if ! command -v wasm-snip &> /dev/null; then
-            echo "Installing specialized MercuryWorkshop wasm-snip fork..."
-            cargo install --git https://github.com --root ~/.cargo
+            echo "Manually cloning specialized MercuryWorkshop wasm-snip fork..."
+            git clone https://github.com /tmp/wasm-snip
+            cd /tmp/wasm-snip
+            cargo install --path . --root ~/.cargo
+            cd $GITHUB_WORKSPACE
           fi
           
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
